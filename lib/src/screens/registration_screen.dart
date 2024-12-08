@@ -1,11 +1,15 @@
-import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:assignment1/src/screens/registrationListPage.dart';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
-import 'package:image_picker/image_picker.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:hive/hive.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+import '../data/user_model.dart';
+import 'login_screen.dart';
 
 class RegistrationPage extends StatefulWidget {
   @override
@@ -41,7 +45,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
       }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Camera and storage permissions are required')),
+        SnackBar(content: Text('Camera and storage permissions are required')),
       );
     }
   }
@@ -55,16 +59,16 @@ class _RegistrationPageState extends State<RegistrationPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text('Take Photo'),
+                leading: Icon(Icons.camera_alt),
+                title: Text('Take Photo'),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.camera);
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.photo),
-                title: const Text('Choose from Gallery'),
+                leading: Icon(Icons.photo),
+                title: Text('Choose from Gallery'),
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.gallery);
@@ -81,7 +85,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
     var status = await Permission.location.request();
     if (status.isDenied) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Location permission is required')),
+        SnackBar(content: Text('Location permission is required')),
       );
       return;
     }
@@ -124,95 +128,22 @@ class _RegistrationPageState extends State<RegistrationPage> {
     }
   }
 
-  // Register User
-  Future<void> _registerUser() async {
-    final url = Uri.parse('https://striking-officially-imp.ngrok-free.app/api/auth/register');
+  late Box<RegistrationData> registrationBox;
 
-    // Collect form data
-    final requestBody = {
-      "name": firstNameController.text.trim(),
-      "last_name": lastNameController.text.trim(),
-      "contact_no": contactNoController.text.trim(),
-      "email": emailController.text.trim(),
-      "password": passwordController.text,
-      "address": addressController.text.trim(),
-    };
-
-    try {
-      // Send POST request
-      final response = await http.post(
-        url,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: jsonEncode(requestBody),
-      );
-
-      // Handle response
-      print(response.statusCode);
-      if (response.statusCode == 200) {
-        final responseData = jsonDecode(response.body);
-
-        if (responseData['status'] == true) {
-          final userData = responseData['data'];
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(responseData['message'])),
-          );
-
-          // Optionally: Navigate to another page or display user data
-          _showUserDetails(userData);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Registration failed: ${responseData['message']}')),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${response.statusCode}')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
-    }
+  @override
+  void initState() {
+    super.initState();
+    _openHiveBox();
   }
 
-  // Display user details after successful registration
-  void _showUserDetails(Map<String, dynamic> userData) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('User Details'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Name: ${userData['name']}'),
-              Text('Email: ${userData['email']}'),
-              Text('Phone: ${userData['phone']}'),
-              Text('Address: ${userData['address']}'),
-              userData['image'] != null
-                  ? Image.network(userData['image'])
-                  : const SizedBox.shrink(),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
+  Future<void> _openHiveBox() async {
+    registrationBox = await Hive.openBox<RegistrationData>('registrationBox');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Registration')),
+      appBar: AppBar(title: Text('Registration')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -226,18 +157,18 @@ class _RegistrationPageState extends State<RegistrationPage> {
                   radius: 50,
                   backgroundImage: _image != null
                       ? FileImage(_image!) as ImageProvider
-                      : const AssetImage('assets/placeholder.png'),
+                      : AssetImage('assets/placeholder.png'),
                   child: _image == null
-                      ? const Icon(Icons.camera_alt, size: 50, color: Colors.white)
+                      ? Icon(Icons.camera_alt, size: 50, color: Colors.white)
                       : null,
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // First Name
               TextFormField(
                 controller: firstNameController,
-                decoration: const InputDecoration(labelText: 'First Name'),
+                decoration: InputDecoration(labelText: 'First Name'),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your first name';
@@ -249,7 +180,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
               // Last Name
               TextFormField(
                 controller: lastNameController,
-                decoration: const InputDecoration(labelText: 'Last Name'),
+                decoration: InputDecoration(labelText: 'Last Name'),
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter your last name';
@@ -261,7 +192,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
               // Contact No
               TextFormField(
                 controller: contactNoController,
-                decoration: const InputDecoration(labelText: 'Contact No'),
+                decoration: InputDecoration(labelText: 'Contact No'),
                 keyboardType: TextInputType.phone,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -274,7 +205,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
               // Email
               TextFormField(
                 controller: emailController,
-                decoration: const InputDecoration(labelText: 'Email ID'),
+                decoration: InputDecoration(labelText: 'Email ID'),
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -290,7 +221,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
               // Password
               TextFormField(
                 controller: passwordController,
-                decoration: const InputDecoration(labelText: 'Password'),
+                decoration: InputDecoration(labelText: 'Password'),
                 obscureText: true,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -303,7 +234,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
               // Confirm Password
               TextFormField(
                 controller: confirmPasswordController,
-                decoration: const InputDecoration(labelText: 'Confirm Password'),
+                decoration: InputDecoration(labelText: 'Confirm Password'),
                 obscureText: true,
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -315,14 +246,14 @@ class _RegistrationPageState extends State<RegistrationPage> {
                 },
               ),
 
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
 
               // Address Field with Location Fetch Icon
               Row(
                 children: [
                   InkWell(
                     onTap: _getLocation,
-                    child: const Icon(
+                    child: Icon(
                       Icons.location_on_outlined,
                       color: Colors.black,
                       size: 30,
@@ -331,7 +262,7 @@ class _RegistrationPageState extends State<RegistrationPage> {
                   Expanded(
                     child: TextFormField(
                       controller: addressController,
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'User Address',
                         hintText: 'Enter or fetch your address',
                       ),
@@ -346,21 +277,100 @@ class _RegistrationPageState extends State<RegistrationPage> {
                 ],
               ),
 
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // Submit Button
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   if (_formKey.currentState?.validate() ?? false) {
-                    _registerUser();
+                    // Check for duplicates before saving
+                    bool isDuplicate = await _checkForDuplicates();
+
+                    if (isDuplicate) {
+                      // Set an appropriate error message if duplicate data is found
+                      errorMessage = 'Email, Contact No, or Password already exists. Please enter a unique value.';
+
+                      // Show an alert if duplicate data is found
+                      showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: Text('Duplicate Data Found'),
+                            content: Text(errorMessage ?? ''),
+                            actions: [
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.of(context).pop();
+                                },
+                                child: Text('OK'),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    } else {
+                      // Proceed with saving the data if no duplicates
+                      Uint8List? imageBytes = _image != null ? await _image!.readAsBytes() : null;
+
+                      final newRegistration = RegistrationData(
+                        firstName: firstNameController.text,
+                        lastName: lastNameController.text,
+                        contactNo: contactNoController.text,
+                        email: emailController.text,
+                        password: passwordController.text,
+                        address: addressController.text,
+                        image: imageBytes,
+                      );
+
+                      // Add to Hive box
+                      await registrationBox.add(newRegistration);
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Registration successful')),
+                      );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => LoginPage()),
+                      );
+                    }
                   }
                 },
-                child: const Text('Register'),
+                child: Text('Register'),
               ),
+
+
+
             ],
           ),
         ),
       ),
     );
+  }
+  String? errorMessage;
+  bool _isDuplicateRegistration(String email, String contactNo, String password) {
+    for (var registration in registrationBox.values) {
+      if (registration.email == email) {
+        return true; // Duplicate email found
+      }
+      if (registration.contactNo == contactNo) {
+        return true; // Duplicate contact number found
+      }
+      if (registration.password == password) {
+        return true; // Duplicate password found
+      }
+    }
+    return false;
+  }
+  Future<bool> _checkForDuplicates() async {
+    var allRegistrations = registrationBox.values.toList();
+
+    for (var registration in allRegistrations) {
+      if (registration.email == emailController.text ||
+          registration.contactNo == contactNoController.text ||
+          registration.password == passwordController.text) {
+        return true; // Duplicate found
+      }
+    }
+    return false; // No duplicates found
   }
 }
